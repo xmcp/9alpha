@@ -1,0 +1,25 @@
+{
+    "name": "9α",
+    "version": "1.0",
+    "description": "我只是一个工具人",
+    "icons": {
+        "128": "icon128.png"
+    },
+    
+    "manifest_version": 2,
+    
+    "permissions": [
+        "*://*/*",
+        "webRequest",
+        "webRequestBlocking",
+        "debugger"
+    ],
+    
+    "background": {
+        "scripts": ["background.js"]
+    },
+    
+    "externally_connectable": {
+        "ids": ["*"]
+    }
+}

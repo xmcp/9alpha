@@ -1,0 +1,19 @@
+{
+    "name": "9ι",
+    "version": "1.0",
+    "description": "他才是一个工具人",
+    
+    "manifest_version": 2,
+    
+    "permissions": [
+        
+    ],
+    
+    "background": {
+        "scripts": ["demo.js"]
+    },
+    
+    "externally_connectable": {
+        "ids": ["*"]
+    }
+}
