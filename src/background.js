@@ -4,6 +4,7 @@
 // https://chromedevtools.github.io/devtools-protocol/tot/Network#type-RequestPattern
 
 var API_VERSION=['1'];
+
 var attached={};
 var mem={};
 var timer={};
@@ -13,6 +14,13 @@ function request_async(extid,msg) {
         chrome.runtime.sendMessage(extid,msg,{},resolve);
     });
 }
+
+function hash(extid,pattern) {
+    pattern=pattern||[];
+    return extid+'|'+pattern.map(encodeURI).join('|');
+}
+
+var client={};
 
 function clear_mem(tabid) {
     delete attached[tabid];
@@ -45,7 +53,7 @@ function perform(tabid,details,extid) {
     timer[tabid]=setTimeout(function() {
         chrome.debugger.detach(target);
         clear_mem(target.tabId);
-    },300);
+    },500);
 }
 
 chrome.debugger.onEvent.addListener(function(src,method,params) {
@@ -90,6 +98,11 @@ chrome.debugger.onEvent.addListener(function(src,method,params) {
     }
 });
 
+function delay() {
+    var s=(+new Date());
+    while((+new Date())-s<20);
+}
+
 chrome.debugger.onDetach.addListener(function(src,reason) {
     console.log('DETACH',src.tabId,reason);
     clear_mem(src.tabId);
@@ -102,19 +115,32 @@ chrome.runtime.onMessageExternal.addListener(function(msg,sender,sendResponse) {
                 error: 'API_VERSION_NOT_SUPPORTED',
                 supported_api_version: API_VERSION
             });
+        console.log('connection from',sender.id);
+        
         var exp=new RegExp(msg.match_pattern_re);
-        chrome.webRequest.onBeforeRequest.addListener(function(details) {
-            if(details.tabId>0 && exp.exec(details.url)) {
-                console.log('REQUEST',details.tabId,details);
-                perform(details.tabId,details,sender.id);
-                //delay();
-                if(attached[details.tabId]!=2)
-                    return {
-                        redirectUrl: details.url
-                    };
-            }
-        }, {urls: msg.match_pattern_filters||['*://*/*']}, ['blocking']);
-        console.log('connection from',sender.id)
+        var curhash=hash(sender.id,msg.match_pattern_filters);
+        
+        if(client[curhash]) {
+            console.log('remove old listener');
+            chrome.webRequest.onBeforeRequest.removeListener(client[curhash].callback,client[curhash].filter,['blocking']);
+        }
+        
+        client[curhash]={
+            callback: function(details) {
+                if(details.tabId>0 && exp.exec(details.url)) {
+                    console.log('REQUEST',details.tabId,details);
+                    perform(details.tabId,details,sender.id);
+                    delay();
+                    if(attached[details.tabId]!=2)
+                        return {
+                            redirectUrl: details.url
+                        };
+                }
+            },
+            filter: {urls: msg.match_pattern_filters||['*://*/*']}
+        }
+        
+        chrome.webRequest.onBeforeRequest.addListener(client[curhash].callback,client[curhash].filter,['blocking']);
         sendResponse({
             error: null
         });
