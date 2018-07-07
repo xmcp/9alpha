@@ -1,0 +1,88 @@
+hide footbox
+
+actor you as "Your Extension"
+participant 9alpha
+database Webpage
+
+== Browser Startup ==
+
+rnote over 9alpha: debugger.onEvent\naddListener
+rnote over 9alpha: runtime.onMessageExternal\naddListener
+...
+you->9alpha: runtime.sendMessage\n9ALPHA_INIT
+activate 9alpha
+activate you
+9alpha->9alpha: store URL rule
+rnote over 9alpha: webRequest.onbeforerequest\naddListener
+9alpha-->you: sendResponse\n{error: null}
+deactivate 9alpha
+
+rnote over you: runtime.onMessageExternal\naddListener
+deactivate you
+...
+
+== Request ==
+
+rnote over Webpage: GET <url>
+
+Webpage->9alpha: onbeforerequest\nGET <url>
+activate Webpage
+activate 9alpha
+
+9alpha->9alpha: check URL rule\n(matched)
+9alpha->9alpha: check debugger status\n(not attached)
+9alpha->9alpha: store tabId rule
+9alpha->you: runtime.sendMessage\n9ALPHA_CALL
+activate you
+9alpha->chrome.debugger: debugger.attach
+activate chrome.debugger
+
+9alpha-->Webpage: return\n{redirectUrl: <url>}
+deactivate 9alpha
+
+|||
+
+loop
+  Webpage->9alpha: onbeforerequest\nGET <url>
+  activate 9alpha
+  9alpha->9alpha: check URL rule\n(matched)
+  9alpha->9alpha: check debugger status\n(attaching)
+  9alpha-->Webpage: return\n{redirectUrl: <url>}
+  deactivate 9alpha
+end
+
+|||
+
+chrome.debugger->Webpage: Network.enable
+chrome.debugger->Webpage: Network.setRequestInterception
+chrome.debugger-->9alpha: update debugger status\n(attached)
+
+|||
+
+Webpage->9alpha: onbeforerequest\nGET <url>
+activate 9alpha
+
+9alpha->9alpha: check URL rule\n(matched)
+9alpha->9alpha: check debugger status\n(attached)
+9alpha-->Webpage: return {cancel: false}
+deactivate 9alpha
+
+Webpage->chrome.debugger: HTTP Request\nGET <url>
+chrome.debugger->9alpha: Network.requestIntercepted
+activate 9alpha
+9alpha->9alpha: check tabId rule\n(found Promise)
+
+...
+
+you-->9alpha: sendResponse\n{raw: '<response>'}
+deactivate you
+
+9alpha-->chrome.debugger: Network.continueInterceptedRequest\n{rawResponse: base64(<response>)}
+
+chrome.debugger-->Webpage: <response>
+deactivate Webpage
+rnote over Webpage: Got mocked response
+
+9alpha->chrome.debugger: debugger.detach
+destroy chrome.debugger
+deactivate 9alpha
